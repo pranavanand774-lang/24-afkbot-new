@@ -6,8 +6,8 @@
     "type": "offline"
   },
   "server": {
-    "ip": "pagalsmp1.aternos.me",
-    "port": 13746,
+    "ip": "dhaakasmp.aternos.me",
+    "port": 27989,
     "version": "1.20.1",
     "try-creative": false
   },
