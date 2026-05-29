@@ -1,13 +1,13 @@
 {
   "name": "AFK Bot",
   "bot-account": {
-    "username": "ggsbot",
+    "username": "AFKBOT",
     "password": "",
     "type": "offline"
   },
   "server": {
-    "ip": "dhaakasmp.aternos.me",
-    "port": 27989,
+    "ip": "dominatorSMP.play.hosting",
+    "port": 35685,
     "version": "1.20.1",
     "try-creative": false
   },
