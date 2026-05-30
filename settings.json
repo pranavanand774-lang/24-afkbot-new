@@ -7,7 +7,6 @@
   },
   "server": {
     "ip": "dominatorSMP.play.hosting",
-    "port": 15745,
     "version": "1.20.1",
     "try-creative": false
   },
