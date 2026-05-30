@@ -1203,7 +1203,8 @@ function createBot() {
   }
 
   addLog(`[Bot] Creating bot instance...`);
-  addLog(`[Bot] Connecting to ${config.server.ip}:${config.server.port}`);
+  const port = config.server.port || 25565;
+  addLog(`[Bot] Connecting to ${config.server.ip}:${port}`);
 
   try {
     // FIX: use version:false to auto-detect server version so the bot can join any server.
@@ -1217,7 +1218,7 @@ function createBot() {
       password: config["bot-account"].password || undefined,
       auth: config["bot-account"].type,
       host: config.server.ip,
-      port: config.server.port,
+      port: port,
       version: botVersion,
       hideErrors: false,
       checkTimeoutInterval: 600000,
