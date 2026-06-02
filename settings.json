@@ -6,8 +6,8 @@
     "type": "offline"
   },
   "server": {
-    "ip": "62.141.62.24",
-    "port": 8393,
+    "ip": "in2.javixnode.fun",
+    "port": 49053,
     "version": "1.20.1",
     "try-creative": false
   },
