@@ -8,6 +8,8 @@ const config = require("./settings.json");
 const express = require("express");
 const http = require("http");
 const https = require("https");
+const { createProxyMiddleware } = require("http-proxy-middleware");
+const mineflayerViewer = require("prismarine-viewer").mineflayer;
 
 // ============================================================
 // EXPRESS SERVER - Keep Render/Aternos alive
@@ -15,6 +17,18 @@ const https = require("https");
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 5000;
+
+// Viewer state
+let viewerActive = false;
+
+// Proxy /viewer/* → internal prismarine-viewer server on port 3000
+const viewerProxy = createProxyMiddleware({
+  target: "http://localhost:3000",
+  changeOrigin: true,
+  pathRewrite: { "^/viewer": "" },
+  ws: true,
+  on: { error: () => {} },
+});
 
 // Bot state tracking
 let botState = {
@@ -189,6 +203,9 @@ app.get('/', (req, res) => {
             <div class="btn-grid btn-grid-2">
               <a href="/tutorial" class="btn-secondary" aria-label="View setup guide">Setup guide</a>
               <a href="/logs" class="btn-secondary" aria-label="View bot logs">View logs</a>
+            </div>
+            <div class="btn-grid">
+              <a href="/view" class="btn-secondary" style="border-color:#388bfd;color:#58a6ff;background:#0d1b2e" aria-label="Live bot view">&#127909; Live View</a>
             </div>
           </section>
 
@@ -475,6 +492,143 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/ping", (req, res) => res.send("pong"));
+
+// Proxy the prismarine-viewer (HTTP + WebSocket) through /viewer
+app.use("/viewer", viewerProxy);
+
+// Viewer page — full-screen iframe embed
+app.get("/view", (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <title>${config.name} - Live View</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" media="print" onload="this.media='all'"
+              href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+        <style>
+          *, *::before, *::after { box-sizing: border-box; }
+          html, body { margin: 0; padding: 0; height: 100%; background: #0d1117; font-family: 'Inter', sans-serif; }
+
+          .topbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 48px;
+            background: #161b22;
+            border-bottom: 1px solid #21262d;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 14px;
+            z-index: 100;
+          }
+
+          .back-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 13px; font-weight: 500; color: #8b949e;
+            text-decoration: none; background: #0d1117;
+            border: 1px solid #21262d; border-radius: 7px;
+            padding: 5px 12px;
+            transition: color 0.2s, background 0.2s;
+          }
+          .back-btn:hover { background: #21262d; color: #c9d1d9; }
+
+          .title {
+            font-size: 14px; font-weight: 600; color: #f0f6fc;
+            flex: 1;
+          }
+
+          .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #da3633;
+            transition: background 0.3s;
+          }
+          .status-dot.online { background: #3fb950; animation: pulse 2s infinite; }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+          }
+
+          .status-text { font-size: 12px; color: #8b949e; }
+
+          .view-frame {
+            position: fixed;
+            top: 48px; left: 0; right: 0; bottom: 0;
+          }
+
+          .overlay {
+            position: fixed;
+            top: 48px; left: 0; right: 0; bottom: 0;
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column; gap: 12px;
+            background: #0d1117;
+            color: #8b949e;
+            font-size: 14px;
+          }
+          .overlay svg { opacity: 0.3; }
+          .overlay p { margin: 0; }
+
+          iframe {
+            width: 100%; height: 100%;
+            border: none;
+            display: block;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="topbar">
+          <a href="/" class="back-btn">&#8592; Dashboard</a>
+          <span class="title">Live Bot View &mdash; First Person</span>
+          <span class="status-dot" id="dot"></span>
+          <span class="status-text" id="stxt">Checking…</span>
+        </div>
+
+        <div id="overlay" class="overlay">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#8b949e" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <p id="overlay-msg">Bot is not connected yet…</p>
+        </div>
+
+        <div class="view-frame" id="frame-wrap" style="display:none">
+          <iframe id="viewer-frame" src="/viewer/" allow="fullscreen"></iframe>
+        </div>
+
+        <script>
+          async function checkStatus() {
+            try {
+              const r = await fetch('/health');
+              const d = await r.json();
+              const dot = document.getElementById('dot');
+              const stxt = document.getElementById('stxt');
+              const overlay = document.getElementById('overlay');
+              const frameWrap = document.getElementById('frame-wrap');
+              const overlayMsg = document.getElementById('overlay-msg');
+
+              if (d.status === 'connected') {
+                dot.className = 'status-dot online';
+                stxt.textContent = 'Connected';
+                overlay.style.display = 'none';
+                frameWrap.style.display = 'block';
+              } else {
+                dot.className = 'status-dot';
+                stxt.textContent = 'Disconnected';
+                overlayMsg.textContent = 'Bot is disconnected — viewer will appear once bot joins';
+                overlay.style.display = 'flex';
+                frameWrap.style.display = 'none';
+              }
+            } catch(e) {}
+          }
+          checkStatus();
+          setInterval(checkStatus, 5000);
+        </script>
+      </body>
+    </html>
+  `);
+});
 
 app.get("/logs", (req, res) => {
   const logs = getLogs();
@@ -1075,6 +1229,13 @@ server.on("error", (err) => {
   }
 });
 
+// Forward WebSocket upgrades for /viewer path to the prismarine-viewer server
+server.on("upgrade", (req, socket, head) => {
+  if (req.url && req.url.startsWith("/viewer")) {
+    viewerProxy.upgrade(req, socket, head);
+  }
+});
+
 // FIX: only one definition of formatUptime
 function formatUptime(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -1258,6 +1419,18 @@ function createBot() {
       addLog(
         `[Bot] [+] Successfully spawned on server! (Version: ${bot.version})`,
       );
+
+      // Start 3D viewer on first spawn; ignore port-in-use on reconnects
+      if (!viewerActive) {
+        try {
+          mineflayerViewer(bot, { port: 3000, firstPerson: true });
+          viewerActive = true;
+          addLog("[Viewer] 3D viewer started — visit /view to watch live");
+        } catch (e) {
+          addLog(`[Viewer] Could not start viewer: ${e.message}`);
+        }
+      }
+
       if (
         config.discord &&
         config.discord.events &&
