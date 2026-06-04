@@ -6,8 +6,8 @@
     "type": "offline"
   },
   "server": {
-    "ip": "in2.javixnode.fun",
-    "port": 49053,
+    "ip": "node3.zexhosting.xyz",
+    "port": 19033,
     "version": "1.20.1",
     "try-creative": false
   },
